@@ -497,7 +497,7 @@ IFDHTransmitToICC (DWORD Lun, SCARD_IO_HEADER SendPci,
 #endif
       dad = (UCHAR) ((slot == 0) ? 0x00 : slot + 1);
       sad = 0x02;
-      lr = (unsigned short) (*RxLength);
+      lr = (*RxLength) > MAX_RESPONSE_SIZE ? MAX_RESPONSE_SIZE : (unsigned short) (*RxLength);
       lc = (unsigned short) TxLength;
 
       ret = CT_data (ctn, &dad, &sad, lc, TxBuffer, &lr, RxBuffer);
@@ -553,7 +553,7 @@ IFDHControl (DWORD Lun, PUCHAR TxBuffer,
 #endif
       dad = 0x01;
       sad = 0x02;
-      lr = (unsigned short) (*RxLength);
+      lr = (*RxLength) > MAX_RESPONSE_SIZE ? MAX_RESPONSE_SIZE : (unsigned short) (*RxLength);
       lc = (unsigned short) TxLength;
 
       ret = CT_data (ctn, &dad, &sad, lc, TxBuffer, &lr, RxBuffer);
