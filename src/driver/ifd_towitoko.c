@@ -35,6 +35,7 @@
 
 #define IFD_TOWITOKO_TIMEOUT             1000
 #define IFD_TOWITOKO_DELAY               0
+#define IFD_TOWITOKO_CMDGAP              1
 #define IFD_TOWITOKO_BAUDRATE            9600
 #define IFD_TOWITOKO_PS                  15
 #define IFD_TOWITOKO_MAX_TRANSMIT        255
@@ -1592,7 +1593,7 @@ IFD_Towitoko_PrepareCommand (IFD * ifd, BYTE * command, BYTE size)
     {
       buffer[0] = size - 1;
       
-      if (!IO_Serial_Write (ifd->io, IFD_TOWITOKO_DELAY, 1, buffer))
+      if (!IO_Serial_Write (ifd->io, IFD_TOWITOKO_CMDGAP, 1, buffer))
         return IFD_TOWITOKO_IO_ERROR;
 
       initial = IFD_Towitoko_Checksum(buffer, 1, ifd->slot);
