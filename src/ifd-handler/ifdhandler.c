@@ -551,7 +551,7 @@ IFDHControl (DWORD Lun, PUCHAR TxBuffer,
 #ifdef HAVE_PTHREAD_H
       pthread_mutex_unlock (&ifdh_context_mutex[ctn]);
 #endif
-      dad = 0x01;
+      dad = (TxBuffer[0] == 0x20) ? 0x01 : (UCHAR) ((slot == 0) ? 0x00 : slot + 1);
       sad = 0x02;
       lr = (*RxLength) > MAX_RESPONSE_SIZE ? MAX_RESPONSE_SIZE : (unsigned short) (*RxLength);
       lc = (unsigned short) TxLength;
