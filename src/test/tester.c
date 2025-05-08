@@ -531,8 +531,7 @@ GetMemoryLength(unsigned char * atr, unsigned length)
 	if (length < 2)
 		return 0;
 
-	/* This line is dedicated to Rene Puls ;-) */
-	return( 1 << (((int)(atr[1] & 120) >> 3)+6) * 1 << (int)(atr[1] & 7) / 8);
+	return 1 << (((int)(atr[1] & 0x78) >> 3) + ((int)(atr[1] & 7)) + 3);
 }
 
 void 

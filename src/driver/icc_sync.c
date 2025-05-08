@@ -58,7 +58,6 @@
  */
 
 static int ICC_Sync_ProbeCardType (ICC_Sync * icc);
-static int ICC_Sync_ProbeMemoryLength (ICC_Sync * icc);
 static int ICC_Sync_ProbePagemode (ICC_Sync * icc);
 static ATR_Sync * ICC_Sync_CreateAtr(ICC_Sync * icc);
 static void ICC_Sync_Clear (ICC_Sync * icc);
@@ -121,14 +120,6 @@ ICC_Sync_Init (ICC_Sync * icc, IFD * ifd)
 
   /* Probe Card type  */
   ret = ICC_Sync_ProbeCardType (icc);
-  if (ret != ICC_SYNC_OK)
-    {
-      ICC_Sync_Clear (icc);
-      return ret;
-    }
-
-  /* Probe memory length */
-  ret = ICC_Sync_ProbeMemoryLength (icc);
   if (ret != ICC_SYNC_OK)
     {
       ICC_Sync_Clear (icc);
@@ -479,8 +470,9 @@ static int
 ICC_Sync_ProbeCardType (ICC_Sync * icc)
 {
 #ifndef ICC_SYNC_MEMORY_TYPE
-  BYTE protocol, status[1], orig[1], modif[1];
-  int ret;
+  BYTE protocol, status[1], orig[1], modif[1], rdback, mirror[6];
+  unsigned min, max;
+  int i = 0, ret;
   
   if (icc->atr != NULL)
     {
@@ -504,21 +496,16 @@ ICC_Sync_ProbeCardType (ICC_Sync * icc)
 	printf ("ICC: Detected synchronous card with unknown ATR\n");
 #endif 
       }
+      icc->length = ATR_Sync_GetNumberOfDataUnits(icc->atr) * ATR_Sync_GetLengthOfDataUnits(icc->atr) / 8;
     }
     
   else
     { 
-      /* Check for I2C (short or long) */
-      IFD_Towitoko_SetReadAddress (icc->ifd,  IFD_TOWITOKO_I2C_SHORT, 0);
-      IFD_Towitoko_GetStatus  (icc->ifd, status);
-      IFD_Towitoko_DeactivateICC (icc->ifd);
+    /* Check for I2C (short or long) */
+	icc->type = IFD_TOWITOKO_I2C_SHORT;
 
-      if ((status[0] & 0x10) != 0x10)
-        {
-	  /* Check for I2CX card */
-	  icc->type = IFD_TOWITOKO_I2C_SHORT;
-
-          ICC_Sync_Read (icc, 0, 1, orig);
+	ret = ICC_Sync_Read (icc, 0, 1, orig);
+	if (ret == ICC_SYNC_OK) {
 
 	  if (orig[0] == 0xFF)
 	    modif[0] = 0x01;
@@ -527,28 +514,55 @@ ICC_Sync_ProbeCardType (ICC_Sync * icc)
 	  else
 	    modif[0] = ~orig[0];
 
-	  if (ICC_Sync_Write (icc, 0, 1, modif) == ICC_SYNC_OK)
-	    ICC_Sync_Write (icc, 0, 1, orig);
-	  else
-            icc->type = IFD_TOWITOKO_I2C_LONG;
-	
-          IFD_Towitoko_ActivateICC (icc->ifd);
-          
-          ret = ICC_SYNC_OK;
-        }
-      
-      else
-        ret = ICC_SYNC_DETECT_ERROR;
-    }
+	  if (ICC_Sync_Write (icc, 0, 1, modif) == ICC_SYNC_OK) {
+		min = 256L;
+		max = 2048L;
+	  }
+	  else  {
+		icc->type = IFD_TOWITOKO_I2C_LONG;
+		ICC_Sync_Read (icc, 0, 1, orig);
+
+		if (orig[0] == 0xFF)
+			modif[0] = 0x01;
+		else if (orig[0] == 0x00)
+			modif[0] = 0xFE;
+		else
+			modif[0] = ~orig[0];
+
+		ICC_Sync_Write (icc, 0, 1, modif);
+
+		min = 2048L;
+		max = 65536L;
+	  }
+	  for (icc->length = min; icc->length<max; icc->length*=2) {
+		if (ICC_Sync_Read (icc, icc->length, 1, &rdback) != ICC_SYNC_OK) break;
+		mirror[i++] = rdback;
+	  }
+	  max = icc->length;
+
+	  ICC_Sync_Write (icc, 0, 1, orig);
+	  i = 0;
+	  for (icc->length = min; icc->length<max; icc->length*=2) {
+		if (ICC_Sync_Read (icc, icc->length, 1, &rdback) != ICC_SYNC_OK) break;
+#ifdef DEBUG_ICC
+		printf ("ICC: Read back is %02X / was %02X at Memory size = %d\n",
+					rdback, mirror[i], icc->length);
+#endif
+		if (mirror[i++] != rdback) break;
+	  }
+	}
+  }
 
 #ifdef DEBUG_ICC
-  if (ret == ICC_SYNC_OK)
+  if (ret == ICC_SYNC_OK) {
     printf ("ICC: Detected %s memory card\n", 
   	  icc->type == 0? "I2C short": 
   	  icc->type == 1? "I2C long": 
   	  icc->type == 2? "2-wire bus protocol":
   	  icc->type == 3? "3-wire bus protocol": 
   	  "invalid");
+	printf ("ICC: Memory size = %d\n", icc->length);
+  }
 #endif
 
   return ret;
@@ -558,64 +572,6 @@ ICC_Sync_ProbeCardType (ICC_Sync * icc)
 
   return ICC_SYNC_OK;
 #endif
-}
-
-static int
-ICC_Sync_ProbeMemoryLength (ICC_Sync * icc)
-{
-  int ret;
-#ifndef ICC_SYNC_MEMORY_LENGTH
-  unsigned min, max;
-  BYTE status[1];
-
-  if (icc->atr != NULL)
-    {
-      icc->length = ATR_Sync_GetNumberOfDataUnits(icc->atr) * ATR_Sync_GetLengthOfDataUnits(icc->atr) / 8;
-      ret = ICC_SYNC_OK;
-    }
-
-  else
-    {
-      if  (icc->type == ICC_SYNC_I2C_SHORT)
-        {
-	  min = 256L;
-	  max = 2048L;
-	}
-      else if (icc->type == ICC_SYNC_I2C_LONG)
-        {
-	  min = 2048L;
-	  max = 32768L;
-	}
-      else
-	{
-	  min = 256L;
-	  max = 2048L;
-	}
-
-      for (icc->length = min; icc->length<max; icc->length*=2)
-        {
-          IFD_Towitoko_SetReadAddress (icc->ifd,  icc->type, icc->length);
-          IFD_Towitoko_GetStatus  (icc->ifd, status);
-          IFD_Towitoko_DeactivateICC (icc->ifd);
-          IFD_Towitoko_ActivateICC (icc->ifd);
-
-          if ((status[0] & 0x10) == 0x10)
-	    break;
-	}
-
-      ret = ICC_SYNC_OK;
-    }
-
-#else
-  icc->length = ICC_SYNC_MEMORY_LENGTH;
-  ret = ICC_SYNC_OK;
-#endif
-
-#ifdef DEBUG_ICC
-  printf ("ICC: Memory size = %d\n", icc->length);
-#endif
-
-  return ret;
 }
 
 static int
@@ -651,7 +607,7 @@ ICC_Sync_CreateAtr(ICC_Sync * icc)
 	  (icc->length == 4096L)? 0x33:
 	  (icc->length == 8192L)? 0x3B: 
 	  (icc->length == 16384)? 0x43:
-	  (icc->length == 32768)? 0x4B: 0x4B;
+	  (icc->length == 32768)? 0x4B: 0x5B;
   atr_buffer[2] = 0x10;
   atr_buffer[3] = 0x84;
 
