@@ -195,8 +195,10 @@ ICC_Sync_Read (ICC_Sync * icc, unsigned short address, unsigned length,
     }
 
   /* Read access */
-  if (IFD_Towitoko_SetReadAddress (icc->ifd, icc->type, address) != IFD_TOWITOKO_OK)
-    return ICC_SYNC_IFD_ERROR;
+  if(icc->type != ICC_SYNC_I2C_OTHER) {
+    if (IFD_Towitoko_SetReadAddress (icc->ifd, icc->type, address) != IFD_TOWITOKO_OK)
+      return ICC_SYNC_IFD_ERROR;
+  }
 
   if (IFD_Towitoko_ReadBuffer (icc->ifd, length, data) != IFD_TOWITOKO_OK)
     return ICC_SYNC_IFD_ERROR;
@@ -477,6 +479,7 @@ ICC_Sync_ProbeCardType (ICC_Sync * icc)
   if (icc->atr != NULL)
     {
       ret = ICC_SYNC_OK;
+      icc->length = ATR_Sync_GetNumberOfDataUnits(icc->atr) * ATR_Sync_GetLengthOfDataUnits(icc->atr) / 8;
 
       protocol = ATR_Sync_GetProtocolType(icc->atr);
        
@@ -491,12 +494,12 @@ ICC_Sync_ProbeCardType (ICC_Sync * icc)
         
       else
       {
-        ret = ICC_SYNC_DETECT_ERROR;
+        icc->type = ICC_SYNC_I2C_OTHER;
+        icc->length = 32;	// HACK: don't know how to calculate
 #ifdef DEBUG_ICC
-	printf ("ICC: Detected synchronous card with unknown ATR\n");
+        printf ("ICC: Detected synchronous card reporting protocol %x in ATR\n", protocol);
 #endif 
       }
-      icc->length = ATR_Sync_GetNumberOfDataUnits(icc->atr) * ATR_Sync_GetLengthOfDataUnits(icc->atr) / 8;
     }
     
   else

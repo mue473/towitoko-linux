@@ -44,6 +44,7 @@
 #define ICC_SYNC_I2C_LONG	1
 #define ICC_SYNC_2W		2
 #define ICC_SYNC_3W		3
+#define ICC_SYNC_I2C_OTHER	5
 
 /* Maximum size of the PIN */
 #define ICC_SYNC_PIN_SIZE	3
