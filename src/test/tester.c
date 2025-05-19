@@ -534,6 +534,23 @@ GetMemoryLength(unsigned char * atr, unsigned length)
 	return 1 << (((int)(atr[1] & 0x78) >> 3) + ((int)(atr[1] & 7)) + 3);
 }
 
+void
+Print_ascii_data(unsigned char * buffer, unsigned length)
+{
+	unsigned i;
+
+	for (i = length; i < 16; i++)
+		printf("   ");
+	printf("  '");
+	for (i = 0; i < length; i++) {
+	if (isprint(buffer[i]))
+		printf("%c", buffer[i]);
+	else
+		putchar(46);
+	}
+	printf("'\n");
+}
+
 void 
 PrintArray (unsigned char * buffer, unsigned length)
 {
@@ -546,11 +563,11 @@ PrintArray (unsigned char * buffer, unsigned length)
 	{
 		printf ("%02X ", buffer[i]);
 		if (i%16 == 15)
-			printf ("\n");
+			Print_ascii_data(&buffer[i & 0xFFF0], 16);
 	}
 
 	if (i%16 != 0)
-		printf ("\n");
+			Print_ascii_data(&buffer[i & 0xFFF0], i%16);
 }
 
 void
